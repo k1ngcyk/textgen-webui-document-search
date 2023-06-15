@@ -29,6 +29,7 @@ def load_current_vector():
     global store
     store = load_vector_store()
 
+
 def create_embedding(folder):
     if os.path.exists(VECTORDB_PATH):
         shutil.rmtree(VECTORDB_PATH)
@@ -62,8 +63,14 @@ def custom_generate_chat_prompt(user_input, state, **kwargs):
     global store
     results = similar(user_input, topk=2)
     results = [x.page_content.replace("\n", " ") for x in results]
-    additional_context = '. 请基于以下已知的内容, 专业地回答我的问题, 如果提供的内容不是非常相关, 请抛弃这些内容并以友善的语气进行回答。已知内容: ' + '。'.join(results)
-    user_input += additional_context
+    if state['mode'] == 'chat-instruct':
+        results = similar(user_input, topk=3)
+        results = [x.page_content for x in results]
+        state['chat-instruct_command'] = '已知内容:\n' + '\n'.join(results) + '\n\n请尽量基于上面的已知内容完成下面的任务. \n' + state['chat-instruct_command']
+    else:
+        additional_context = '. 请基于以下已知的内容, 专业地回答我的问题, 如果提供的内容不是非常相关, 请抛弃这些内容并以友善的语气进行回答。已知内容: ' + '。'.join(results)
+        user_input += additional_context
+
     return chat.generate_chat_prompt(user_input, state, **kwargs)
 
 
@@ -81,9 +88,7 @@ def ui():
         ext_enabled.change(ext, inputs=[ext_enabled])
         with gr.Column(min_width=600):
             with gr.Tab("File input"):
-                folder_files = gr.File(label="添加文件夹",
-                                       accept_multiple_files=True,
-                                       file_count="directory",
+                folder_files = gr.File(file_count="directory",
                                        show_label=False)
                 load_folder_button = gr.Button("为文件夹创建知识库")
             load_current = gr.Button("加载现有知识库")
